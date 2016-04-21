@@ -29,3 +29,8 @@
 
 server
 client
+
+*.txt
+*.png 
+*.jpg
+*.gif

@@ -112,7 +112,7 @@ bool args_err(int argc, char** argv, options* args)
                 p++; 
                 char* garbage = '\0';
                 int port = strtoul(optarg,&garbage,0);
-                if ((garbage[0]!='\0') || (port < 0)) 
+                if ((garbage[0]!='\0') || (port < 1024) || (port > 65535)) 
                 {
                     return EXIT_FAILURE;
                 }

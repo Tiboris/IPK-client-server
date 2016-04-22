@@ -99,7 +99,7 @@ bool args_err(int argc, const char** argv)
     }
     char* garbage = '\0';
     int port = strtoul(argv[2],&garbage,0);
-    if ((garbage[0]!='\0') || (port < 0)) 
+    if ((garbage[0]!='\0') || (port < 1024) || (port > 65535)) 
     {
         return EXIT_FAILURE;
     }

@@ -16,13 +16,14 @@ using namespace std;
 *   Used constants and variables
 */
 const int REQ_ARGC = 3;
-const int MAX_CLIENTS = 10;
+const int MAX_CLIENTS = 9;
 /*
 * Prototypes of functions
 */
 void err_print(const char *msg);
 bool args_err(int argc, const char** argv);
 
+void doprocessing (int sock);
 /*
 *   Main
 */
@@ -37,9 +38,9 @@ int main(int argc, char const *argv[])
     /*
         vars
     */
-    int sockfd, newsockfd, clilen, n;
-    char buffer[256];
-    struct sockaddr_in serv_addr, cli_addr;
+    int sockfd, newsockfd;
+
+    struct sockaddr_in server_addr, client_addr;
     /* 
         First call socket() function 
     */
@@ -52,14 +53,14 @@ int main(int argc, char const *argv[])
     /* 
         Initialize socket structure 
     */
-    bzero((char *) &serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(port);
+    bzero((char *) &server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
     /*
         Binding socket
     */
-    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
+    if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) 
     {
         err_print("ERROR on binding, make sure port is available");
         return EXIT_FAILURE;
@@ -70,14 +71,44 @@ int main(int argc, char const *argv[])
         for the incoming connection
     */
     listen(sockfd,MAX_CLIENTS);
-    clilen = sizeof(cli_addr);
+    socklen_t cli_len = sizeof(client_addr);
     /*
-        Getting thing work
+        Getting things work
     */
     while(true)
     {
-        cout << "Port No: " << port << endl;
+        newsockfd = accept(sockfd, (struct sockaddr *) &client_addr, &cli_len);
+        
+        if (newsockfd < 0) 
+        {
+            perror("ERROR on accept");
+            exit(1);
+        }
+      
+        /* Create child process */
+        doprocessing(newsockfd);
+        close(newsockfd);
         break;
+       /* switch(fork())
+        {
+            case -1:
+            {
+                perror("ERROR on fork");
+                exit(1);
+                break;
+            }
+            case 0:
+            {
+                // This is the client process 
+                close(sockfd);
+                //doprocessing(newsockfd);
+                exit(0);
+            }
+            default:
+            {
+                close(newsockfd);
+            }
+        }*/
     }
     return EXIT_SUCCESS;
 }
@@ -104,4 +135,26 @@ bool args_err(int argc, const char** argv)
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
+}
+
+void doprocessing (int sock) {
+    int n;
+    char buffer[256];
+    bzero(buffer,256);
+    n = read(sock,buffer,255);
+   
+    if (n < 0) 
+    {
+        perror("ERROR reading from socket");
+        exit(1);
+    }
+   
+    printf("Here is the message: %s\n",buffer);
+    n = write(sock,"I got your message",18);
+   
+    if (n < 0) 
+    {
+        perror("ERROR writing to socket");
+        exit(1);
+    }
 }

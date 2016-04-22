@@ -16,8 +16,8 @@ using namespace std;
 */
 typedef struct Options
 {
-    string hostname;
-    string file_name;
+    char* hostname;
+    char* file_name;
     int port;
     bool download;
 } options;
@@ -25,7 +25,8 @@ typedef struct Options
 /*
 *   Used constants and variables
 */
-const int REQ_ARGC = 3;
+const int REQ_ARGC = 7;
+const int REQ_COMB = 20;
 const int MAX_ATTEMPTS = 5;
 const size_t BUFF_SIZE = 1024;
 string file_name = "";
@@ -59,11 +60,93 @@ int main(int argc, char **argv)
         err_print("Wrong parameters, usage: ./client -h hostname -p port [-­d|u] file_name");
         return EXIT_FAILURE;
     }
-    cout << "host " << args.hostname << endl;
+    //cout << "host:\t" << args.hostname << endl;
     if ( connect_to() ) 
     {
         return EXIT_FAILURE;
     }
+
+
+
+   int sockfd, n;
+   struct sockaddr_in serv_addr;
+   struct hostent *server;
+   
+   char buffer[256];
+   
+   if (argc < 3) {
+      fprintf(stderr,"usage %s hostname port\n", argv[0]);
+      exit(0);
+   }
+    
+
+   
+   /* Create a socket point */
+   sockfd = socket(AF_INET, SOCK_STREAM, 0);
+   
+   if (sockfd < 0) {
+      perror("ERROR opening socket");
+      exit(1);
+   }
+    
+   server = gethostbyname(args.hostname);
+   
+   if (server == NULL) {
+      fprintf(stderr,"ERROR, no such host\n");
+      exit(0);
+   }
+   
+   bzero((char *) &serv_addr, sizeof(serv_addr));
+   serv_addr.sin_family = AF_INET;
+   bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+   serv_addr.sin_port = htons(args.port);
+   
+   /* Now connect to the server */
+   if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+      perror("ERROR connecting");
+      exit(1);   
+   }
+   
+   /* Now ask for a message from the user, this message
+      * will be read by server
+   */
+    
+   printf("Please enter the message: ");
+   bzero(buffer,256);
+   fgets(buffer,255,stdin);
+   
+   /* Send message to the server */
+   n = write(sockfd, buffer, strlen(buffer));
+   
+   if (n < 0) {
+      perror("ERROR writing to socket");
+      exit(1);
+   }
+   
+   /* Now read server response */
+   bzero(buffer,256);
+   n = read(sockfd, buffer, 255);
+   
+   if (n < 0) {
+      perror("ERROR reading from socket");
+      exit(1);
+   }
+    
+   printf("%s\n",buffer);
+   return 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     return EXIT_SUCCESS;
 }
@@ -84,6 +167,10 @@ bool args_err(int argc, char** argv, options* args)
     provede nahrání souboru test.txt z aktuálního adresáře procesu klienta do
     aktuálního adresáře procesu serveru
     */
+    if (argc != REQ_ARGC)
+    {
+        return EXIT_FAILURE;
+    }
     int opt,h=0,p=0,u=0,d=0;
     while ((opt = getopt(argc,argv,"h:p:u:d:")) != EOF)
     {
@@ -91,7 +178,7 @@ bool args_err(int argc, char** argv, options* args)
         {
             case 'h': 
             {
-                h++; 
+                h += 10; 
                 args->hostname = optarg ; 
                 break;
             }
@@ -109,7 +196,7 @@ bool args_err(int argc, char** argv, options* args)
             }
             case 'p': 
             {
-                p++; 
+                p += 9; 
                 char* garbage = '\0';
                 int port = strtoul(optarg,&garbage,0);
                 if ((garbage[0]!='\0') || (port < 1024) || (port > 65535)) 
@@ -121,11 +208,12 @@ bool args_err(int argc, char** argv, options* args)
             }
             case '?': 
             {
+                
                 return EXIT_FAILURE;
             }
         }
     }
-    if ((h > 1) || (p > 1) || (u > 1) || (d > 1) || ((h+p+d+u) != REQ_ARGC))
+    if ((h > 10) || (p > 9) || (u > 1) || (d > 1) || ((h+p+d+u) != REQ_COMB))
     {
         return EXIT_FAILURE;
     }

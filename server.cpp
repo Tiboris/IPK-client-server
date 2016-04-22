@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <thread>         // std::thread
 /*
 *
 */
@@ -17,13 +18,16 @@ using namespace std;
 */
 const int REQ_ARGC = 3;
 const int MAX_CLIENTS = 9;
+const int MAX_BUFF_SIZE = 1024;
 /*
 * Prototypes of functions
 */
 void err_print(const char *msg);
 bool args_err(int argc, const char** argv);
 
-void doprocessing (int sock);
+void handle_request(int sock);
+void send_data(int socket);
+void recv_data(int socket);
 /*
 *   Main
 */
@@ -86,30 +90,25 @@ int main(int argc, char const *argv[])
         }
       
         /* Create child process */
-        doprocessing(newsockfd);
+        handle_request(newsockfd);
         close(newsockfd);
-        break;
-       /* switch(fork())
-        {
-            case -1:
-            {
-                perror("ERROR on fork");
-                exit(1);
-                break;
-            }
-            case 0:
-            {
-                // This is the client process 
-                close(sockfd);
-                //doprocessing(newsockfd);
-                exit(0);
-            }
-            default:
-            {
-                close(newsockfd);
-            }
-        }*/
+        
+        /* 
+        thread first (foo);     // spawn new thread that calls foo()
+        std::thread second (bar,0);  // spawn new thread that calls bar(0)
+
+        std::cout << "main, foo and bar now execute concurrently...\n";
+
+        // synchronize threads:
+        first.join();                // pauses until first finishes
+        second.join();               // pauses until second finishes
+
+        std::cout << "foo and bar completed.\n";
+
+        return 0;
+        */
     }
+    close(sockfd);
     return EXIT_SUCCESS;
 }
 /*
@@ -137,11 +136,12 @@ bool args_err(int argc, const char** argv)
     return EXIT_SUCCESS;
 }
 
-void doprocessing (int sock) {
+void handle_request(int sock)
+{
     int n;
-    char buffer[256];
-    bzero(buffer,256);
-    n = read(sock,buffer,255);
+    char buffer[MAX_BUFF_SIZE];
+    bzero(buffer,MAX_BUFF_SIZE);
+    n = read(sock,buffer,MAX_BUFF_SIZE);
    
     if (n < 0) 
     {
@@ -158,3 +158,14 @@ void doprocessing (int sock) {
         exit(1);
     }
 }
+
+void send_data(int socket)
+{
+    cout<<socket;
+}
+
+void recv_data(int socket)
+{
+    cout<<socket;   
+}
+

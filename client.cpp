@@ -233,19 +233,31 @@ string generate_message(bool download,char* file_name)
 
 bool start_upload(int socket, const char* target)
 {
-    printf("upload: %s\n",target);
-
     ifstream file;
-
-    file.open (target, ios::in );
-
+    file.open (target, ios::in );  
     if (! file.is_open())
     {
-        perror("ERR Server can not open file");
+        perror("ERROR can not open file");
         return EXIT_FAILURE;
     }
-    // IF READY SEND FILE
-    printf("here upload proccesing %d\n", socket);
+
+    char data [MAX_BUFF_SIZE];
+    bzero(data, MAX_BUFF_SIZE);
+    while(true)
+    {
+        file.read(data,MAX_BUFF_SIZE);
+        if ((write(socket,data,file.gcount())) < 0) 
+        {
+            perror("ERROR writing to socket");
+            return EXIT_FAILURE;
+        }
+
+        bzero(data, MAX_BUFF_SIZE);
+        if (file.eof())
+        {
+            break;
+        }
+    }
     return EXIT_SUCCESS;
 }
 
@@ -253,7 +265,7 @@ bool start_download(int socket, const char* target, size_t size)
 {
 
     ofstream file;
-    string tail = to_string(socket)+".temporary";
+    string tail = "_("+to_string(socket)+").temporary";
     string tmp = target+tail;
     file.open (tmp, ios::out | ios::binary );
 
@@ -270,9 +282,11 @@ bool start_download(int socket, const char* target, size_t size)
     }
 
     int res;
+    size_t total=0;
     char part[MAX_BUFF_SIZE];
     while ((res = read(socket, part, MAX_BUFF_SIZE)))
     {
+        total += res;
         if (res < 1) 
         {
             perror("ERROR while getting response");
@@ -284,12 +298,19 @@ bool start_download(int socket, const char* target, size_t size)
             bzero(part, MAX_BUFF_SIZE); // buff erase
         }
     }
-    /*check file size*/
-    file.close();    
+    file.close(); 
+
+    if ( total != size)
+    {
+        perror("ERROR size of temporary file do not match");
+        return EXIT_FAILURE;
+    }
+       
     if (rename( tmp.c_str() , target ) != 0)
     {
         perror("ERROR while renamig temp file");
-        return  EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
-    return  EXIT_SUCCESS;
+
+    return EXIT_SUCCESS;
 }

@@ -118,8 +118,7 @@ void start_upload(int socket, const char* target)
     file.open (target, ios::in );
     if (stat( target, &filestatus ) != 0)
     {
-        code = write(socket,"ERR Server can not open file",29);
-        if (code < 0) 
+        if ((write(socket,"ERR Server can not open file",29))< 0) 
         {
             perror("ERROR writing to socket");
             exit(EXIT_FAILURE);
@@ -148,7 +147,7 @@ void start_upload(int socket, const char* target)
     // reading request into buffer 
     if (read(socket,buffer,RECV_BUFF) < 0) 
     {
-        perror("ERROR reading from sockeT");
+        perror("ERROR reading from socket");
         exit(EXIT_FAILURE);
     }
     
@@ -158,7 +157,7 @@ void start_upload(int socket, const char* target)
         cerr<<("ERROR do not understand")<<endl;
         exit(EXIT_FAILURE);
     }
-    
+
     char data [MAX_BUFF_SIZE];
     bzero(data, MAX_BUFF_SIZE);
     while(true)
@@ -181,30 +180,54 @@ void start_upload(int socket, const char* target)
 
 void start_download(int socket, const char* target, size_t size)
 {
-    int code;
-    printf("U want me to SAVE your target: %s size ",target);
-    cout<<size<<endl;
     ofstream file;
-
-    string tail = to_string(socket)+".temporary";
+    string tail = "_("+to_string(socket)+").temporary";
     string tmp = target+tail;
-
     file.open (tmp, ios::binary );
 
-    if (file.is_open())
+    if (! file.is_open())
     {
-        code = write(socket,"READY\r\n",10);
+        perror("ERR can not create file");
+        exit(EXIT_FAILURE);
     }
-    else
-    {
-        code = write(socket,"ERR Server can not create file",31);
-    }   
-    if (code < 0) 
+
+    if ((write(socket,"READY\r\n",10)) < 0)
     {
         perror("ERROR writing to socket");
         exit(EXIT_FAILURE);
     }
-    printf("Save and exit\n");
+
+    int res;
+    size_t total=0;
+    char part[MAX_BUFF_SIZE];
+
+    while ((res = read(socket, part, MAX_BUFF_SIZE)))
+    {
+        total += res;
+        if (res < 1) 
+        {
+            perror("ERROR while getting response");
+            exit(EXIT_FAILURE);
+        }
+        else 
+        { 
+            file.write(part,res);
+            bzero(part, MAX_BUFF_SIZE); // buff erase
+        }
+    }
+
+    if (total != size)
+    {
+        perror("ERROR size of temporary file do not match");
+        exit(EXIT_FAILURE);
+    }
+
+    file.close();    
+    if (rename( tmp.c_str() , target ) != 0)
+    {
+        perror("ERROR while renamig temp file");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int create_socket(int port)

@@ -5,6 +5,7 @@
 #include <regex>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -31,7 +32,6 @@ const int MAX_ATTEMPTS = 5;
 const size_t BUFF_SIZE = 1024;
 string file_name = "";
 
-string known_urls = "";
 int attempts = 0; 
 /*
 * Used regular expressions
@@ -44,11 +44,10 @@ void err_print(const char *msg);
 
 bool args_err(int argc, char** argv, options* args);
 
-string get_cont();
-
 bool connect_to(char* hostname, int port, bool download, char* file_name);
 
-bool save_response();
+string generate_message(bool download,char* file_name);
+
 /*
 *   Main
 */
@@ -57,7 +56,7 @@ int main(int argc, char **argv)
     options args;
     if ( args_err(argc,argv,&args) ) 
     {
-        err_print("Wrong parameters, usage: ./client -h hostname -p port [-­d|u] file_name");
+        perror("Wrong parameters, usage: ./client -h hostname -p port [-­d|u] file_name");
         return EXIT_FAILURE;
     }
 
@@ -69,13 +68,6 @@ int main(int argc, char **argv)
     return EXIT_SUCCESS;
 }
 /*
-*   For printing errors
-*/
-void err_print(const char *msg)
-{
-    cerr << msg << endl;    
-}
-/*
 *   For checking arguments
 */
 bool args_err(int argc, char** argv, options* args)
@@ -84,44 +76,36 @@ bool args_err(int argc, char** argv, options* args)
     {
         return EXIT_FAILURE;
     }
-    int opt,h=0,p=0,u=0,d=0;
+    int opt,port,h=0,p=0,u=0,d=0;
+    char* garbage = '\0';
     while ((opt = getopt(argc,argv,"h:p:u:d:")) != EOF)
     {
         switch(opt)
         {
             case 'h': 
             {
-                h += 10; 
-                args->hostname = optarg ; 
-                break;
+                h += 10; args->hostname = optarg ; break;
             }
             case 'u':
             { 
-                u++; 
-                args->file_name = optarg; 
-                break;
+                u++; args->file_name = optarg; args->download=false; break;
             }
             case 'd': 
             {
-                d++; 
-                args->file_name = optarg; ; 
-                break;
+                d++; args->file_name = optarg; args->download=true; break;
             }
             case 'p': 
             {
-                p += 9; 
-                char* garbage = '\0';
-                int port = strtoul(optarg,&garbage,0);
+                port = strtoul(optarg,&garbage,0);
                 if ((garbage[0]!='\0') || (port < 1024) || (port > 65535)) 
                 {
                     return EXIT_FAILURE;
                 }
-                args->port = port; 
+                p += 9; args->port = port; 
                 break;
             }
             case '?': 
             {
-                
                 return EXIT_FAILURE;
             }
         }
@@ -142,17 +126,9 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     struct sockaddr_in serv_addr;
     struct hostent *server;
    
-    char buffer[256];
-    
-    if (download)
-    {
-        cout<<"down "<< file_name <<endl;
-    }
-    else
-    {
-        cout<<"up "<< file_name <<endl;
-    }
-   
+    char resp_buffer[256];
+    string req_msg = generate_message(download,file_name);
+    cout << "Sending:\n" << req_msg;
     /* Create a socket point */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
    
@@ -161,7 +137,7 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
         perror("ERROR opening socket");
         return EXIT_FAILURE;
     }
-    
+    /* Maybe use for */
     server = gethostbyname(hostname);
    
     if (server == NULL) 
@@ -174,24 +150,15 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     serv_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(port);
-   
     /* Now connect to the server */
     if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) 
     {
         perror("ERROR connecting");
         return EXIT_FAILURE;
     }
-   
-    /* Now ask for a message from the user, this message
-      * will be read by server
-    */
-    
-    printf("Please enter the message: ");
-    bzero(buffer,256);
-    fgets(buffer,255,stdin); 
-   
+
     /* Send message to the server */
-    n = write(sockfd, buffer, strlen(buffer));
+    n = write(sockfd, req_msg.c_str(), req_msg.size());
    
     if (n < 0) 
     {
@@ -200,8 +167,8 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     }
    
     /* Now read server response */
-    bzero(buffer,256);
-    n = read(sockfd, buffer, 255);
+    bzero(resp_buffer,256);
+    n = read(sockfd, resp_buffer, 255);
    
     if (n < 0) 
     {
@@ -209,40 +176,28 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
         return EXIT_FAILURE;
     }
     
-    printf("%s\n",buffer);
+    printf("%s\n",resp_buffer);
 
-    return EXIT_SUCCESS;
-}
-/*
-*   For sending head request and returning response
-*/
-string get_cont()
-{
     return EXIT_SUCCESS;
 }
 /*
 *   For writing into file
 */
-bool save_response(string response, bool chunked)
+string generate_message(bool download,char* file_name)
 {
-    size_t pos = response.find("\r\n\r\n");
-    response.erase(0, pos+4);
-    if (chunked) 
+    string req_msg = "";
+    if (download)
     {
-        string chunked_resp = response;
-        response = "";
-        unsigned int block_size;
-        while ((pos = chunked_resp.find("\r\n")) != string::npos )
-        {   // real cutting of string magic
-            block_size = strtoul(chunked_resp.substr(0,pos).c_str(), NULL, 16);
-            chunked_resp.erase(0, pos+2);
-            response += chunked_resp.substr(0,block_size);
-            chunked_resp.erase(0,block_size);
-        }
+        req_msg += "GET\r\n";
+        req_msg += static_cast<string>(file_name)+"\r\n\r\n";
     }
-    ofstream myfile;
-    myfile.open(file_name);
-    myfile << response;
-    myfile.close();
-    return EXIT_SUCCESS;
+    else
+    {
+        req_msg += "SAVE\r\n";
+        req_msg += static_cast<string>(file_name) + "\r\n";
+        struct stat filestatus;
+        stat( file_name, &filestatus );
+        req_msg += to_string(filestatus.st_size) + "\r\n\r\n";
+    }
+    return req_msg;
 }

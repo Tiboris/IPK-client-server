@@ -35,7 +35,7 @@ int main(int argc, char const *argv[])
 {   
     if (args_err(argc,argv)) 
     {
-        err_print("Wrong parameters, usage: ./server -p [port_number]");
+        perror("Wrong parameters, usage: ./server -p [port_number]");
         return EXIT_FAILURE;
     }
     int port = strtoul(argv[2],NULL,0);
@@ -51,7 +51,7 @@ int main(int argc, char const *argv[])
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) 
     {
-        err_print("ERROR opening socket");
+        perror("ERROR opening socket");
         return EXIT_FAILURE;
     }
     /* 
@@ -66,7 +66,7 @@ int main(int argc, char const *argv[])
     */
     if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) 
     {
-        err_print("ERROR on binding, make sure port is available");
+        perror("ERROR on binding, make sure port is available");
         return EXIT_FAILURE;
     }
     /* 
@@ -88,7 +88,10 @@ int main(int argc, char const *argv[])
             perror("ERROR on accept");
             exit(1);
         }
-      
+
+        cout << client_addr.sin_addr.s_addr<< endl;
+
+        //thread 
         /* Create child process */
         handle_request(newsockfd);
         close(newsockfd);
@@ -112,13 +115,6 @@ int main(int argc, char const *argv[])
     return EXIT_SUCCESS;
 }
 /*
-*   For printing errors
-*/
-void err_print(const char *msg)
-{
-    cerr << msg << endl;    
-}
-/*
 *   For checking argument
 */
 bool args_err(int argc, const char** argv)
@@ -138,21 +134,21 @@ bool args_err(int argc, const char** argv)
 
 void handle_request(int sock)
 {
-    int n;
+    int code;
     char buffer[MAX_BUFF_SIZE];
     bzero(buffer,MAX_BUFF_SIZE);
     n = read(sock,buffer,MAX_BUFF_SIZE);
    
-    if (n < 0) 
+    if (code < 0) 
     {
         perror("ERROR reading from socket");
         exit(1);
     }
    
     printf("Here is the message: %s\n",buffer);
-    n = write(sock,"I got your message",18);
+    code = write(sock,"I got your message",18);
    
-    if (n < 0) 
+    if (code < 0) 
     {
         perror("ERROR writing to socket");
         exit(1);

@@ -18,13 +18,15 @@ using namespace std;
 */
 const int REQ_ARGC = 3;
 const int MAX_CLIENTS = 9;
+const int RECV_BUFF = 256;
 const int MAX_BUFF_SIZE = 1024;
 /*
 * Prototypes of functions
 */
 void err_print(const char *msg);
 bool args_err(int argc, const char** argv);
-
+int create_socket(int port);
+bool begin_listen(int socket, bool interrupt);
 void handle_request(int sock);
 void send_data(int socket);
 void recv_data(int socket);
@@ -37,82 +39,17 @@ int main(int argc, char const *argv[])
     {
         perror("Wrong parameters, usage: ./server -p [port_number]");
         return EXIT_FAILURE;
-    }
-    int port = strtoul(argv[2],NULL,0);
-    /*
-        vars
-    */
-    int sockfd, newsockfd;
+    }  
 
-    struct sockaddr_in server_addr, client_addr;
-    /* 
-        First call socket() function 
-    */
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) 
+    int socket;
+    if ((socket = create_socket(strtoul(argv[2],NULL,0))) == -1)
     {
-        perror("ERROR opening socket");
         return EXIT_FAILURE;
     }
-    /* 
-        Initialize socket structure 
-    */
-    bzero((char *) &server_addr, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
-    /*
-        Binding socket
-    */
-    if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) 
-    {
-        perror("ERROR on binding, make sure port is available");
-        return EXIT_FAILURE;
-    }
-    /* 
-        Now start listening for the clients, here
-        process will go in sleep mode and will wait
-        for the incoming connection
-    */
-    listen(sockfd,MAX_CLIENTS);
-    socklen_t cli_len = sizeof(client_addr);
-    /*
-        Getting things work
-    */
-    while(true)
-    {
-        newsockfd = accept(sockfd, (struct sockaddr *) &client_addr, &cli_len);
-        
-        if (newsockfd < 0) 
-        {
-            perror("ERROR on accept");
-            exit(1);
-        }
 
-        cout << client_addr.sin_addr.s_addr<< endl;
+    bool interrupt=false; //TODO
 
-        //thread 
-        /* Create child process */
-        handle_request(newsockfd);
-        close(newsockfd);
-        
-        /* 
-        thread first (foo);     // spawn new thread that calls foo()
-        std::thread second (bar,0);  // spawn new thread that calls bar(0)
-
-        std::cout << "main, foo and bar now execute concurrently...\n";
-
-        // synchronize threads:
-        first.join();                // pauses until first finishes
-        second.join();               // pauses until second finishes
-
-        std::cout << "foo and bar completed.\n";
-
-        return 0;
-        */
-    }
-    close(sockfd);
-    return EXIT_SUCCESS;
+    return (begin_listen(socket, interrupt)) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 /*
 *   For checking argument
@@ -132,27 +69,30 @@ bool args_err(int argc, const char** argv)
     return EXIT_SUCCESS;
 }
 
-void handle_request(int sock)
+void handle_request(int cli_socket)
 {
     int code;
-    char buffer[MAX_BUFF_SIZE];
-    bzero(buffer,MAX_BUFF_SIZE);
-    n = read(sock,buffer,MAX_BUFF_SIZE);
+    char buffer[RECV_BUFF];
+    bzero(buffer,RECV_BUFF);
+    code = read(cli_socket,buffer,RECV_BUFF);
    
     if (code < 0) 
     {
         perror("ERROR reading from socket");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
    
     printf("Here is the message: %s\n",buffer);
-    code = write(sock,"I got your message",18);
+    code = write(cli_socket,"I got your message",18);
    
     if (code < 0) 
     {
         perror("ERROR writing to socket");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
+
+    close(cli_socket);
+
 }
 
 void send_data(int socket)
@@ -165,3 +105,68 @@ void recv_data(int socket)
     cout<<socket;   
 }
 
+int create_socket(int port)
+{
+    int sockfd;
+    struct sockaddr_in server_addr;
+    /* 
+        First call socket() function 
+    */
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) 
+    {
+        perror("ERROR opening socket");
+        return -1;
+    }
+    /* 
+        Initialize socket structure 
+    */
+    bzero((char *) &server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+    /*
+        Binding socket
+    */
+    if (bind(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) 
+    {
+        perror("ERROR on binding, make sure port is available");
+        return -1;
+    }
+    
+    return sockfd;
+}
+
+bool begin_listen(int socket, bool interrupt)
+{
+    struct sockaddr_in client_addr;
+    /* 
+        Now start listening for the clients, here
+        process will go in sleep mode and will wait
+        for the incoming connection
+    */
+    listen(socket,MAX_CLIENTS);
+    socklen_t cli_len = sizeof(client_addr);
+    while(true)
+    {
+        if (interrupt)
+        {
+            break;
+        }
+
+        int cli_socket = accept(socket, (struct sockaddr *) &client_addr, &cli_len);
+        
+        if (cli_socket < 0) 
+        {
+            perror("ERROR on accept");
+            return EXIT_FAILURE;
+        }
+
+        handle_request(cli_socket);
+        //thread first (foo);     // spawn new thread that calls foo()
+        //std::thread second (bar,0);  // spawn new thread that calls bar(0)
+    }
+    close(socket);
+
+    return EXIT_SUCCESS;
+}

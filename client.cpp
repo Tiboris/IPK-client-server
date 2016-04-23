@@ -126,8 +126,13 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     struct sockaddr_in serv_addr;
     struct hostent *server;
    
-    char resp_buffer[256];
+    char resp_buffer[BUFF_SIZE];
     string req_msg = generate_message(download,file_name);
+    if (req_msg == "ERR")
+    {
+        return EXIT_FAILURE;
+    }
+
     cout << "Sending:\n" << req_msg;
     /* Create a socket point */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -167,8 +172,8 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     }
    
     /* Now read server response */
-    bzero(resp_buffer,256);
-    n = read(sockfd, resp_buffer, 255);
+    bzero(resp_buffer,BUFF_SIZE);
+    n = read(sockfd, resp_buffer, BUFF_SIZE-1);
    
     if (n < 0) 
     {
@@ -196,7 +201,11 @@ string generate_message(bool download,char* file_name)
         req_msg += "SAVE\r\n";
         req_msg += static_cast<string>(file_name) + "\r\n";
         struct stat filestatus;
-        stat( file_name, &filestatus );
+        if (stat( file_name, &filestatus ) != 0)
+        {
+            perror("ERROR opening file to upload");
+            return "ERR";
+        }
         req_msg += to_string(filestatus.st_size) + "\r\n\r\n";
     }
     return req_msg;

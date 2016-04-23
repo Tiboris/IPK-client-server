@@ -29,6 +29,7 @@ typedef struct Options
 const int REQ_ARGC = 7;
 const int REQ_COMB = 20;
 const int MAX_ATTEMPTS = 5;
+const size_t RESP_BUFF = 40;
 const size_t BUFF_SIZE = 1024;
 string file_name = "";
 
@@ -45,6 +46,10 @@ void err_print(const char *msg);
 bool args_err(int argc, char** argv, options* args);
 
 bool connect_to(char* hostname, int port, bool download, char* file_name);
+
+void upload_data(int socket, const char* target);
+
+void download_data(int socket, const char* target, size_t size);
 
 string generate_message(bool download,char* file_name);
 
@@ -122,21 +127,18 @@ bool args_err(int argc, char** argv, options* args)
 */
 bool connect_to(char* hostname, int port, bool download, char* file_name)
 {   
-    int sockfd, n;
+    int sockfd, code;
     struct sockaddr_in serv_addr;
     struct hostent *server;
    
-    char resp_buffer[BUFF_SIZE];
+    char resp_buffer[RESP_BUFF];
     string req_msg = generate_message(download,file_name);
     if (req_msg == "ERR")
     {
         return EXIT_FAILURE;
     }
-
-    cout << "Sending:\n" << req_msg;
     /* Create a socket point */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-   
     if (sockfd < 0) 
     {
         perror("ERROR opening socket");
@@ -144,13 +146,11 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     }
     /* Maybe use for */
     server = gethostbyname(hostname);
-   
     if (server == NULL) 
     {
         fprintf(stderr,"ERROR, no such host\n");
         return EXIT_FAILURE;
     }
-   
     bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
@@ -161,27 +161,49 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
         perror("ERROR connecting");
         return EXIT_FAILURE;
     }
-
     /* Send message to the server */
-    n = write(sockfd, req_msg.c_str(), req_msg.size());
+    code = write(sockfd, req_msg.c_str(), req_msg.size());
    
-    if (n < 0) 
+    if (code < 0) 
     {
         perror("ERROR writing to socket");
         return EXIT_FAILURE;
     }
-   
+    /*
+        TODO DOWN / UPLO
+    */
     /* Now read server response */
-    bzero(resp_buffer,BUFF_SIZE);
-    n = read(sockfd, resp_buffer, BUFF_SIZE-1);
+    bzero(resp_buffer,RESP_BUFF);
+    code = read(sockfd, resp_buffer, RESP_BUFF-1);
    
-    if (n < 0) 
+    if (code < 0) 
     {
         perror("ERROR reading from socket");
         return EXIT_FAILURE;
     }
-    
-    printf("%s\n",resp_buffer);
+    string resp = static_cast<string>(resp_buffer);
+    size_t size = resp.find("\r\n");
+    string act = resp.substr(0,size);
+    resp.erase(0,size+2);
+    if (act == "OK")
+    {
+        size = resp.find("\r\n");
+        size = stoi(resp.substr(0,size), &size);
+    }
+
+    if (download && (act == "OK"))
+    {
+        download_data(sockfd, file_name, size);
+    }
+    else if (!download && (act == "READY"))
+    {
+        upload_data(sockfd, file_name);        
+    }
+    else
+    {
+        cerr << (resp_buffer) << endl;
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -193,8 +215,8 @@ string generate_message(bool download,char* file_name)
     string req_msg = "";
     if (download)
     {
-        req_msg += "GET\r\n";
-        req_msg += static_cast<string>(file_name)+"\r\n\r\n";
+        req_msg += "SEND\r\n";
+        req_msg += static_cast<string>(file_name)+"\r\n";
     }
     else
     {
@@ -203,10 +225,52 @@ string generate_message(bool download,char* file_name)
         struct stat filestatus;
         if (stat( file_name, &filestatus ) != 0)
         {
-            perror("ERROR opening file to upload");
+            perror("ERROR opening local file to upload");
             return "ERR";
         }
-        req_msg += to_string(filestatus.st_size) + "\r\n\r\n";
+        req_msg += to_string(filestatus.st_size) + "\r\n";
     }
     return req_msg;
+}
+
+void upload_data(int socket, const char* target)
+{
+    printf("upload: %s\n",target);
+
+    ofstream file;
+
+    file.open (target, ios::in );
+
+    if (file.is_open())
+    {
+        printf("here upload proccesing %d\n", socket);
+    }
+    else
+    {
+        perror("ERR Server can not open file");
+    }
+    // IF READY SEND FILE
+
+}
+
+void download_data(int socket, const char* target, size_t size)
+{
+    
+    printf("download: %s size ",target);
+    cout<<size<<endl;
+    ofstream file;
+
+    file.open (target, ios::binary );
+
+    if (file.is_open())
+    {
+        printf("here download processing %d\n", socket);
+        cout<<"SIZE "<< size<<endl;
+    }
+    else
+    {
+        perror("ERR can not create file");
+    }   
+
+    // NOW SAVE TO FILE
 }

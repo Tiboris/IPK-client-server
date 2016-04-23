@@ -30,7 +30,7 @@ const int REQ_ARGC = 7;
 const int REQ_COMB = 20;
 const int MAX_ATTEMPTS = 5;
 const size_t RESP_BUFF = 40;
-const size_t BUFF_SIZE = 1024;
+const size_t MAX_BUFF_SIZE = 1024;
 string file_name = "";
 
 int attempts = 0; 
@@ -47,9 +47,9 @@ bool args_err(int argc, char** argv, options* args);
 
 bool connect_to(char* hostname, int port, bool download, char* file_name);
 
-void upload_data(int socket, const char* target);
+bool start_upload(int socket, const char* target);
 
-void download_data(int socket, const char* target, size_t size);
+bool start_download(int socket, const char* target, size_t size);
 
 string generate_message(bool download,char* file_name);
 
@@ -193,19 +193,17 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
 
     if (download && (act == "OK"))
     {
-        download_data(sockfd, file_name, size);
+        return start_download(sockfd, file_name, size);
     }
     else if (!download && (act == "READY"))
     {
-        upload_data(sockfd, file_name);        
+        return start_upload(sockfd, file_name);        
     }
     else
     {
         cerr << (resp_buffer) << endl;
         return EXIT_FAILURE;
     }
-
-    return EXIT_SUCCESS;
 }
 /*
 *   For writing into file
@@ -233,44 +231,65 @@ string generate_message(bool download,char* file_name)
     return req_msg;
 }
 
-void upload_data(int socket, const char* target)
+bool start_upload(int socket, const char* target)
 {
     printf("upload: %s\n",target);
 
-    ofstream file;
+    ifstream file;
 
     file.open (target, ios::in );
 
-    if (file.is_open())
-    {
-        printf("here upload proccesing %d\n", socket);
-    }
-    else
+    if (! file.is_open())
     {
         perror("ERR Server can not open file");
+        return EXIT_FAILURE;
     }
     // IF READY SEND FILE
-
+    printf("here upload proccesing %d\n", socket);
+    return EXIT_SUCCESS;
 }
 
-void download_data(int socket, const char* target, size_t size)
+bool start_download(int socket, const char* target, size_t size)
 {
-    
-    printf("download: %s size ",target);
-    cout<<size<<endl;
+
     ofstream file;
+    string tail = to_string(socket)+".temporary";
+    string tmp = target+tail;
+    file.open (tmp, ios::out | ios::binary );
 
-    file.open (target, ios::binary );
-
-    if (file.is_open())
-    {
-        printf("here download processing %d\n", socket);
-        cout<<"SIZE "<< size<<endl;
-    }
-    else
+    if (! file.is_open())
     {
         perror("ERR can not create file");
-    }   
+        return EXIT_FAILURE;
+    }
 
-    // NOW SAVE TO FILE
+    if ((write(socket,"READY\r\n",10)) < 0)
+    {
+        perror("ERROR writing to socket");
+        return EXIT_FAILURE;
+    }
+
+    int res;
+    char part[MAX_BUFF_SIZE];
+    while ((res = read(socket, part, MAX_BUFF_SIZE)))
+    {
+        if (res < 1) 
+        {
+            perror("ERROR while getting response");
+            return EXIT_FAILURE;
+        }
+        else 
+        { 
+            file.write(part,res);
+            bzero(part, MAX_BUFF_SIZE); // buff erase
+        }
+    }
+    /*check file size*/
+    file.close();    
+    if (rename( tmp.c_str() , target ) != 0)
+    {
+        perror("ERROR while renamig temp file");
+        return  EXIT_FAILURE;
+    }
+    return  EXIT_SUCCESS;
 }

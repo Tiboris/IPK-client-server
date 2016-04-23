@@ -38,7 +38,7 @@ int main(int argc, char const *argv[])
 {   
     if (args_err(argc,argv)) 
     {
-        perror("Wrong parameters, usage: ./server -p [port_number]");
+        cerr<<("Wrong parameters, usage: ./server -p [port_number]")<<endl;
         return EXIT_FAILURE;
     }  
 
@@ -113,17 +113,18 @@ void handle_request(int cli_socket)
 void start_upload(int socket, const char* target)
 {
     int code;
-    printf("U want me to SEND u target: %s\n",target);
-
     ifstream file;
-
     struct stat filestatus;
+    file.open (target, ios::in );
     if (stat( target, &filestatus ) != 0)
     {
-        code = write(socket,"ERR Server can not open file",28);
+        code = write(socket,"ERR Server can not open file",29);
+        if (code < 0) 
+        {
+            perror("ERROR writing to socket");
+            exit(EXIT_FAILURE);
+        }
     }
-
-    file.open (target, ios::in );
 
     if (file.is_open())
     {
@@ -134,14 +135,48 @@ void start_upload(int socket, const char* target)
     else
     {
         code = write(socket,"ERR Server can not open file",28);
+        exit(EXIT_FAILURE);
     }
     if (code < 0) 
     {
         perror("ERROR writing to socket");
         exit(EXIT_FAILURE);
     }
-    printf("Send and exit\n");
 
+    char buffer[RECV_BUFF];
+    bzero(buffer,RECV_BUFF);
+    // reading request into buffer 
+    if (read(socket,buffer,RECV_BUFF) < 0) 
+    {
+        perror("ERROR reading from sockeT");
+        exit(EXIT_FAILURE);
+    }
+    
+    string msg = static_cast<string>(buffer);
+    if (msg != "READY\r\n")
+    {
+        cerr<<("ERROR do not understand")<<endl;
+        exit(EXIT_FAILURE);
+    }
+    
+    char data [MAX_BUFF_SIZE];
+    bzero(data, MAX_BUFF_SIZE);
+    while(true)
+    {
+        file.read(data,MAX_BUFF_SIZE);
+        code = write(socket,data,file.gcount());
+        bzero(data, MAX_BUFF_SIZE);
+        if (code < 0) 
+        {
+            perror("ERROR writing to socket");
+            exit(EXIT_FAILURE);
+        }
+
+        if (file.eof())
+        {
+            break;
+        }
+    }
 }
 
 void start_download(int socket, const char* target, size_t size)
@@ -151,11 +186,14 @@ void start_download(int socket, const char* target, size_t size)
     cout<<size<<endl;
     ofstream file;
 
-    file.open (target, ios::binary );
+    string tail = to_string(socket)+".temporary";
+    string tmp = target+tail;
+
+    file.open (tmp, ios::binary );
 
     if (file.is_open())
     {
-        code = write(socket,"READY\r\n",256);
+        code = write(socket,"READY\r\n",10);
     }
     else
     {
@@ -216,8 +254,8 @@ bool begin_listen(int socket, bool interrupt)
             return EXIT_FAILURE;
         }
         // let thread handle client
-        handle_request(cli_socket);
-        //thread doer (handle_request, cli_socket); //spawn new thread that calls handle_request(cli_socket)
+        thread t (handle_request, cli_socket);
+        t.detach();
     }
     // when keyboard interrupt close socket and exit
     close(socket);

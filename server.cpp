@@ -78,7 +78,7 @@ void handle_request(int cli_socket)
     if (read(cli_socket,buffer,RECV_BUFF) < 0) 
     {
         perror("ERROR reading from socket");
-        exit(EXIT_FAILURE);
+        return;
     } 
     // parsing message from request
     string msg = static_cast<string>(buffer);
@@ -104,7 +104,7 @@ void handle_request(int cli_socket)
         if ((write(cli_socket,"ERR Server does not understand request",38)) < 0)
         {
             close(cli_socket);
-            exit(EXIT_FAILURE);
+            return;
         }
     }
     close(cli_socket);
@@ -121,7 +121,7 @@ void start_upload(int socket, string target)
         if ((write(socket,"ERR Server can not open file",29))< 0) 
         {
             perror("ERROR writing to socket");
-            exit(EXIT_FAILURE);
+            return;
         }
     }
 
@@ -136,12 +136,12 @@ void start_upload(int socket, string target)
     else
     {
         code = write(socket,"ERR Server can not open file",28);
-        exit(EXIT_FAILURE);
+        return;
     }
     if (code < 0) 
     {
         perror("ERROR writing to socket");
-        exit(EXIT_FAILURE);
+        return;
     }
 
     char buffer[RECV_BUFF];
@@ -150,14 +150,14 @@ void start_upload(int socket, string target)
     if (read(socket,buffer,RECV_BUFF) < 0) 
     {
         perror("ERROR reading from socket");
-        exit(EXIT_FAILURE);
+        return;
     }
     
     string msg = static_cast<string>(buffer);
     if (msg != "READY\r\n")
     {
         cerr<<("ERROR do not understand")<<endl;
-        exit(EXIT_FAILURE);
+        return;
     }
 
     char data [MAX_BUFF_SIZE];
@@ -170,7 +170,7 @@ void start_upload(int socket, string target)
         if (code < 0) 
         {
             perror("ERROR writing to socket");
-            exit(EXIT_FAILURE);
+            return;
         }
 
         if (file.eof())
@@ -192,13 +192,13 @@ void start_download(int socket, string target, size_t size)
     if (! file.is_open())
     {
         perror("ERR can not create file");
-        exit(EXIT_FAILURE);
+        return;
     }
 
     if ((write(socket,"READY\r\n",10)) < 0)
     {
         perror("ERROR writing to socket");
-        exit(EXIT_FAILURE);
+        return;
     }
 
     int res;
@@ -211,7 +211,7 @@ void start_download(int socket, string target, size_t size)
         if (res < 1) 
         {
             perror("ERROR while getting response");
-            exit(EXIT_FAILURE);
+            return;
         }
         else 
         { 
@@ -223,14 +223,14 @@ void start_download(int socket, string target, size_t size)
     if (total != size)
     {
         perror("ERROR size of temporary file do not match");
-        exit(EXIT_FAILURE);
+        return;
     }
 
     file.close();    
     if (rename( tmp.c_str() , target.c_str() ) != 0)
     {
         perror("ERROR while renamig temp file");
-        exit(EXIT_FAILURE);
+        return;
     }
 }
 
@@ -278,7 +278,7 @@ bool begin_listen(int socket, bool interrupt)
         if (cli_socket < 0) 
         {
             perror("ERROR on accept");
-            return EXIT_FAILURE;
+            continue;
         }
         // let thread handle client
         thread t (handle_request, cli_socket);

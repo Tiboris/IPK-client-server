@@ -82,7 +82,7 @@ else
 fi
 echo "--------------------"
 echo "Starting download little file from server"
-./client -h localhost -p 9999 -d big_srv_file
+./client -h localhost -p 9999 -d lit_srv_file
 ERR=$?
 if [ 0 -eq $ERR ]; then
 	echo "OK"

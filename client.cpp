@@ -270,7 +270,6 @@ bool start_download(int socket, string target, size_t size)
     ss << socket;
     string tail = "_("+ ss.str() +").temporary";
     string tmp = target+tail;
-    cerr<<tmp;
     file.open (tmp, ios::out | ios::binary );
 
     if (! file.is_open())

@@ -29,8 +29,8 @@ bool args_err(int argc, const char** argv);
 int create_socket(int port);
 bool begin_listen(int socket, bool interrupt);
 void handle_request(int sock);
-void start_upload(int socket, const char* target);
-void start_download(int socket, const char* target, size_t size);
+void start_upload(int socket, string target);
+void start_download(int socket, string target, size_t size);
 /*
 *   Main
 */
@@ -86,13 +86,13 @@ void handle_request(int cli_socket)
     string act = msg.substr(0,size);
     msg.erase(0,size+2);
     size = msg.find("\r\n");
-    const char* target = (msg.substr(0,size)).c_str();
+    string target = msg.substr(0,size);
     msg.erase(0,size+2);
     // if there is SAVE in message client wants to upload 
     if (act == "SAVE")
     {   // then server find size of file in message and begin download
         size = msg.find("\r\n");
-        size = stoi(msg.substr(0,size), &size);
+        size = atoi(msg.substr(0,size).c_str());
         start_download(cli_socket,target,size);
     }
     else if (act == "SEND")
@@ -110,13 +110,13 @@ void handle_request(int cli_socket)
     close(cli_socket);
 }
 
-void start_upload(int socket, const char* target)
+void start_upload(int socket, string target)
 {
     int code;
     ifstream file;
     struct stat filestatus;
     file.open (target, ios::in );
-    if (stat( target, &filestatus ) != 0)
+    if (stat( target.c_str() , &filestatus ) != 0)
     {
         if ((write(socket,"ERR Server can not open file",29))< 0) 
         {
@@ -128,7 +128,9 @@ void start_upload(int socket, const char* target)
     if (file.is_open())
     {
         string msg = "OK\r\n";
-        msg += to_string(filestatus.st_size) +"\r\n";
+        stringstream ss;
+        ss << filestatus.st_size;
+        msg += ss.str() +"\r\n";
         code = write(socket,msg.c_str(),msg.size());
     }
     else
@@ -178,12 +180,14 @@ void start_upload(int socket, const char* target)
     }
 }
 
-void start_download(int socket, const char* target, size_t size)
+void start_download(int socket, string target, size_t size)
 {
     ofstream file;
-    string tail = "_("+to_string(socket)+").temporary";
+    stringstream ss;
+    ss << socket;
+    string tail = "_("+ ss.str() +").temporary";
     string tmp = target+tail;
-    file.open (tmp, ios::binary );
+    file.open (tmp, ios::out | ios::binary );
 
     if (! file.is_open())
     {
@@ -223,7 +227,7 @@ void start_download(int socket, const char* target, size_t size)
     }
 
     file.close();    
-    if (rename( tmp.c_str() , target ) != 0)
+    if (rename( tmp.c_str() , target.c_str() ) != 0)
     {
         perror("ERROR while renamig temp file");
         exit(EXIT_FAILURE);

@@ -18,7 +18,7 @@ using namespace std;
 typedef struct Options
 {
     char* hostname;
-    char* file_name;
+    string file_name;
     int port;
     bool download;
 } options;
@@ -45,13 +45,13 @@ void err_print(const char *msg);
 
 bool args_err(int argc, char** argv, options* args);
 
-bool connect_to(char* hostname, int port, bool download, char* file_name);
+bool connect_to(char* hostname, int port, bool download, string file_name);
 
-bool start_upload(int socket, const char* target);
+bool start_upload(int socket, string target);
 
-bool start_download(int socket, const char* target, size_t size);
+bool start_download(int socket, string target, size_t size);
 
-string generate_message(bool download,char* file_name);
+string generate_message(bool download,string file_name);
 
 /*
 *   Main
@@ -125,7 +125,7 @@ bool args_err(int argc, char** argv, options* args)
 /*
 *   For connection handling
 */
-bool connect_to(char* hostname, int port, bool download, char* file_name)
+bool connect_to(char* hostname, int port, bool download, string file_name)
 {   
     int sockfd, code;
     struct sockaddr_in serv_addr;
@@ -188,7 +188,7 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
     if (act == "OK")
     {
         size = resp.find("\r\n");
-        size = stoi(resp.substr(0,size), &size);
+        size = atoi(resp.substr(0,size).c_str());
     }
 
     if (download && (act == "OK"))
@@ -208,30 +208,32 @@ bool connect_to(char* hostname, int port, bool download, char* file_name)
 /*
 *   For writing into file
 */
-string generate_message(bool download,char* file_name)
+string generate_message(bool download,string file_name)
 {
     string req_msg = "";
     if (download)
     {
         req_msg += "SEND\r\n";
-        req_msg += static_cast<string>(file_name)+"\r\n";
+        req_msg += file_name+"\r\n";
     }
     else
     {
         req_msg += "SAVE\r\n";
-        req_msg += static_cast<string>(file_name) + "\r\n";
+        req_msg += file_name + "\r\n";
         struct stat filestatus;
-        if (stat( file_name, &filestatus ) != 0)
+        if (stat( file_name.c_str(), &filestatus ) != 0)
         {
             perror("ERROR opening local file to upload");
             return "ERR";
         }
-        req_msg += to_string(filestatus.st_size) + "\r\n";
+        stringstream ss;
+        ss << filestatus.st_size;
+        req_msg += ss.str() + "\r\n";
     }
     return req_msg;
 }
 
-bool start_upload(int socket, const char* target)
+bool start_upload(int socket, string target)
 {
     ifstream file;
     file.open (target, ios::in );  
@@ -261,12 +263,14 @@ bool start_upload(int socket, const char* target)
     return EXIT_SUCCESS;
 }
 
-bool start_download(int socket, const char* target, size_t size)
+bool start_download(int socket, string target, size_t size)
 {
-
     ofstream file;
-    string tail = "_("+to_string(socket)+").temporary";
+    stringstream ss;
+    ss << socket;
+    string tail = "_("+ ss.str() +").temporary";
     string tmp = target+tail;
+    cerr<<tmp;
     file.open (tmp, ios::out | ios::binary );
 
     if (! file.is_open())
@@ -306,7 +310,7 @@ bool start_download(int socket, const char* target, size_t size)
         return EXIT_FAILURE;
     }
        
-    if (rename( tmp.c_str() , target ) != 0)
+    if (rename( tmp.c_str() , target.c_str() ) != 0)
     {
         perror("ERROR while renamig temp file");
         return EXIT_FAILURE;

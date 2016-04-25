@@ -255,6 +255,7 @@ bool start_upload(int socket, string target)
         }
 
         bzero(data, MAX_BUFF_SIZE);
+        //TODO FIX
         if (file.eof())
         {
             break;

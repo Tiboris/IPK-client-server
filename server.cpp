@@ -165,14 +165,14 @@ void start_upload(int socket, string target)
     while(true)
     {
         file.read(data,MAX_BUFF_SIZE);
-        code = write(socket,data,file.gcount());
-        bzero(data, MAX_BUFF_SIZE);
-        if (code < 0) 
+        if ((write(socket,data,file.gcount())) < 0) 
         {
             perror("ERROR writing to socket");
             return;
         }
 
+        bzero(data, MAX_BUFF_SIZE);
+        // TODO FIX
         if (file.eof())
         {
             break;

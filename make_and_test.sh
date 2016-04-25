@@ -196,5 +196,5 @@ else
 	echo "FILE "$XFILE" DOES NOT MATCH"
 fi
 echo "-------------------------"
-echo "DONE"
+echo "DONE: CKECK DIRECTORIES "$SERV_DIR" AND "$CLIE_DIR" FOR RESULTS"
 echo "-------------------------"

@@ -10,11 +10,9 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <stdlib.h>
-
+// used namespace
 using namespace std;
-/*
-*   Structure for options
-*/
+// Structure for options
 typedef struct Options
 {
     char* hostname;
@@ -22,37 +20,22 @@ typedef struct Options
     int port;
     bool download;
 } options;
-
 /*
 *   Used constants and variables
 */
 const int REQ_ARGC = 7;
 const int REQ_COMB = 20;
-const int MAX_ATTEMPTS = 5;
 const size_t RESP_BUFF = 40;
 const size_t MAX_BUFF_SIZE = 1024;
-string file_name = "";
-
-int attempts = 0; 
-/*
-* Used regular expressions
-*/
-
 /*
 * Prototypes of functions
 */
 void err_print(const char *msg);
-
 bool args_err(int argc, char** argv, options* args);
-
 bool connect_to(char* hostname, int port, bool download, string file_name);
-
-bool start_upload(int socket, string target);
-
+bool start_upload(int socket, string target, size_t size);
 bool start_download(int socket, string target, size_t size);
-
-string generate_message(bool download,string file_name);
-
+string generate_message(bool download,string file_name, size_t* size);
 /*
 *   Main
 */
@@ -130,9 +113,9 @@ bool connect_to(char* hostname, int port, bool download, string file_name)
     int sockfd, code;
     struct sockaddr_in serv_addr;
     struct hostent *server;
-   
     char resp_buffer[RESP_BUFF];
-    string req_msg = generate_message(download,file_name);
+    size_t up = 0;
+    string req_msg = generate_message(download,file_name, &up);
     if (req_msg == "ERR")
     {
         return EXIT_FAILURE;
@@ -163,19 +146,14 @@ bool connect_to(char* hostname, int port, bool download, string file_name)
     }
     /* Send message to the server */
     code = write(sockfd, req_msg.c_str(), req_msg.size());
-   
     if (code < 0) 
     {
         perror("ERROR writing to socket");
         return EXIT_FAILURE;
     }
-    /*
-        TODO DOWN / UPLO
-    */
     /* Now read server response */
     bzero(resp_buffer,RESP_BUFF);
     code = read(sockfd, resp_buffer, RESP_BUFF-1);
-   
     if (code < 0) 
     {
         perror("ERROR reading from socket");
@@ -190,14 +168,14 @@ bool connect_to(char* hostname, int port, bool download, string file_name)
         size = resp.find("\r\n");
         size = atoi(resp.substr(0,size).c_str());
     }
-
+    // deciding what to do
     if (download && (act == "OK"))
     {
         return start_download(sockfd, file_name, size);
     }
     else if (!download && (act == "READY"))
     {
-        return start_upload(sockfd, file_name);        
+        return start_upload(sockfd, file_name, up);        
     }
     else
     {
@@ -206,9 +184,9 @@ bool connect_to(char* hostname, int port, bool download, string file_name)
     }
 }
 /*
-*   For writing into file
+*   For creating initial message to server
 */
-string generate_message(bool download,string file_name)
+string generate_message(bool download,string file_name, size_t* size)
 {
     string req_msg = "";
     if (download)
@@ -227,14 +205,18 @@ string generate_message(bool download,string file_name)
             return "ERR";
         }
         stringstream ss;
+        *size = filestatus.st_size;
         ss << filestatus.st_size;
         req_msg += ss.str() + "\r\n";
     }
     return req_msg;
 }
-
-bool start_upload(int socket, string target)
+/*
+*   Upload to server handling
+*/
+bool start_upload(int socket, string target, size_t size)
 {
+    size_t bytes_sent = 0;
     ifstream file;
     file.open (target, ios::in );  
     if (! file.is_open())
@@ -245,9 +227,10 @@ bool start_upload(int socket, string target)
 
     char data [MAX_BUFF_SIZE];
     bzero(data, MAX_BUFF_SIZE);
-    while(true)
+    while(size != bytes_sent)
     {
         file.read(data,MAX_BUFF_SIZE);
+        bytes_sent += file.gcount();
         if ((write(socket,data,file.gcount())) < 0) 
         {
             perror("ERROR writing to socket");
@@ -255,22 +238,18 @@ bool start_upload(int socket, string target)
         }
 
         bzero(data, MAX_BUFF_SIZE);
-        //TODO FIX
-        if (file.eof())
-        {
-            break;
-        }
     }
     return EXIT_SUCCESS;
 }
-
+/*
+*   Download from server handling
+*/
 bool start_download(int socket, string target, size_t size)
 {
     ofstream file;
     stringstream ss;
     ss << socket;
-    string tail = "_("+ ss.str() +").temporary";
-    string tmp = target+tail;
+    string tmp = target+"_("+ ss.str() +").temporary";
     file.open (tmp, ios::out | ios::binary );
 
     if (! file.is_open())

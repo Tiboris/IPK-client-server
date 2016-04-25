@@ -9,10 +9,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <thread>         // std::thread
-/*
-*
-*/
+#include <thread>
+// used namespace
 using namespace std;
 /*
 *   Used constants and variables
@@ -27,7 +25,7 @@ const int MAX_BUFF_SIZE = 1024;
 void err_print(const char *msg);
 bool args_err(int argc, const char** argv);
 int create_socket(int port);
-bool begin_listen(int socket, bool interrupt);
+bool begin_listen(int socket);
 void handle_request(int sock);
 void start_upload(int socket, string target);
 void start_download(int socket, string target, size_t size);
@@ -48,9 +46,7 @@ int main(int argc, char const *argv[])
         return EXIT_FAILURE;
     }
 
-    bool interrupt=false; //TODO
-
-    return (begin_listen(socket, interrupt)) ? EXIT_FAILURE : EXIT_SUCCESS;
+    return (begin_listen(socket)) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 /*
 *   For checking argument
@@ -69,7 +65,9 @@ bool args_err(int argc, const char** argv)
     }
     return EXIT_SUCCESS;
 }
-
+/*
+*   this function decide what will be done
+*/
 void handle_request(int cli_socket)
 {
     char buffer[RECV_BUFF];
@@ -118,18 +116,18 @@ void start_upload(int socket, string target)
     file.open (target, ios::in );
     if (stat( target.c_str() , &filestatus ) != 0)
     {
-        if ((write(socket,"ERR Server can not open file",29))< 0) 
+        if ((write(socket,"ERR Server can not open file",29)) < 0) 
         {
             perror("ERROR writing to socket");
             return;
         }
     }
-
+    size_t size = filestatus.st_size;
     if (file.is_open())
     {
         string msg = "OK\r\n";
         stringstream ss;
-        ss << filestatus.st_size;
+        ss << size;
         msg += ss.str() +"\r\n";
         code = write(socket,msg.c_str(),msg.size());
     }
@@ -146,7 +144,7 @@ void start_upload(int socket, string target)
 
     char buffer[RECV_BUFF];
     bzero(buffer,RECV_BUFF);
-    // reading request into buffer 
+    // reading message into buffer 
     if (read(socket,buffer,RECV_BUFF) < 0) 
     {
         perror("ERROR reading from socket");
@@ -159,12 +157,14 @@ void start_upload(int socket, string target)
         cerr<<("ERROR do not understand")<<endl;
         return;
     }
-
+    size_t bytes_sent = 0;
     char data [MAX_BUFF_SIZE];
     bzero(data, MAX_BUFF_SIZE);
-    while(true)
+    // sending data
+    while(size != bytes_sent)
     {
         file.read(data,MAX_BUFF_SIZE);
+        bytes_sent += file.gcount();
         if ((write(socket,data,file.gcount())) < 0) 
         {
             perror("ERROR writing to socket");
@@ -172,11 +172,6 @@ void start_upload(int socket, string target)
         }
 
         bzero(data, MAX_BUFF_SIZE);
-        // TODO FIX
-        if (file.eof())
-        {
-            break;
-        }
     }
 }
 
@@ -185,8 +180,7 @@ void start_download(int socket, string target, size_t size)
     ofstream file;
     stringstream ss;
     ss << socket;
-    string tail = "_("+ ss.str() +").temporary";
-    string tmp = target+tail;
+    string tmp = target+"_("+ ss.str() +").temporary";
     file.open (tmp, ios::out | ios::binary );
 
     if (! file.is_open())
@@ -202,9 +196,9 @@ void start_download(int socket, string target, size_t size)
     }
 
     int res;
-    size_t total=0;
+    size_t total = 0;
     char part[MAX_BUFF_SIZE];
-
+    // receiving data
     while ((res = read(socket, part, MAX_BUFF_SIZE)))
     {
         total += res;
@@ -219,7 +213,6 @@ void start_download(int socket, string target, size_t size)
             bzero(part, MAX_BUFF_SIZE); // buff erase
         }
     }
-
     if (total != size)
     {
         perror("ERROR size of temporary file do not match");
@@ -260,19 +253,15 @@ int create_socket(int port)
     return sockfd;
 }
 
-bool begin_listen(int socket, bool interrupt)
+bool begin_listen(int socket)
 {
     struct sockaddr_in client_addr;
     // Start listening to clients max 10 9 in queue
     listen(socket,MAX_CLIENTS);
     socklen_t cli_len = sizeof(client_addr);
+    // handling server run
     while(true)
     {
-        if (interrupt)
-        {
-            break;
-        }
-        // creating new socket for client
         int cli_socket = accept(socket, (struct sockaddr *) &client_addr, &cli_len);
         // checking if error occured
         if (cli_socket < 0) 
@@ -284,7 +273,7 @@ bool begin_listen(int socket, bool interrupt)
         thread t (handle_request, cli_socket);
         t.detach();
     }
-    // when keyboard interrupt close socket and exit
     close(socket);
+
     return EXIT_SUCCESS;
 }

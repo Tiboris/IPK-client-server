@@ -195,6 +195,6 @@ if [ 0 -eq $ERR ]; then
 else 
 	echo "FILE "$XFILE" DOES NOT MATCH"
 fi
-echo "-------------------------"
+echo "--------------------------------"
 echo "DONE: CKECK DIRECTORIES "$SERV_DIR" AND "$CLIE_DIR" FOR RESULTS"
-echo "-------------------------"
+echo "--------------------------------"

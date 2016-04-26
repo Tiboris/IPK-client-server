@@ -215,6 +215,7 @@ void start_download(int socket, string target, size_t size)
     }
     if (total != size)
     {
+        if (remove( tmp.c_str() ) != 0) perror("ERROR deleting temporary file");
         perror("ERROR size of temporary file do not match");
         return;
     }
@@ -274,6 +275,5 @@ bool begin_listen(int socket)
         t.detach();
     }
     close(socket);
-
     return EXIT_SUCCESS;
 }

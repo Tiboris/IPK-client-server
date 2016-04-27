@@ -7,7 +7,7 @@ echo "-------------------------"
 echo "Creating work directories"
 SERV_DIR="server_sandbox/"
 CLNT="client"
-XFILE="protocol.pdf"
+FILE="protocol.pdf"
 CLIE_DIR="client_sandbox/"
 BC="big_cli_file"
 BS="big_srv_file"
@@ -28,7 +28,7 @@ cp client $CLIE_DIR
 make clean
 cp $BC $CLIE_DIR
 cp $LC $CLIE_DIR
-cp $XFILE $CLIE_DIR
+cp $FILE $CLIE_DIR
 cp $BS $SERV_DIR
 cp $LS $SERV_DIR
 echo "DONE"
@@ -72,7 +72,7 @@ fi
 echo "-------------------------"
 #edited
 echo "Starting upload pdf file to server"
-./client -h localhost -p $PORT -u $XFILE
+./client -h localhost -p $PORT -u $FILE
 ERR=$?
 if [ 0 -eq $ERR ]; then
 	echo "OK"
@@ -154,9 +154,8 @@ else
 fi
 echo "-------------------------"
 cd ..
-echo "Checking files structures"
+echo "Checking files"
 echo "-------------------------"
-#chk client side | server side
 diff $CLIE_DIR$LS $SERV_DIR$LS
 ERR=$?
 if [ 0 -eq $ERR ]; then
@@ -164,7 +163,6 @@ if [ 0 -eq $ERR ]; then
 else 
 	echo "FILE "$LS" DOES NOT MATCH"
 fi
-#----------------------------------
 diff $CLIE_DIR$BS $SERV_DIR$BS
 ERR=$?
 if [ 0 -eq $ERR ]; then
@@ -172,7 +170,6 @@ if [ 0 -eq $ERR ]; then
 else 
 	echo "FILE "$BS" DOES NOT MATCH"
 fi
-#----------------------------------
 diff $SERV_DIR$LC $CLIE_DIR$LC
 ERR=$?
 if [ 0 -eq $ERR ]; then
@@ -180,7 +177,6 @@ if [ 0 -eq $ERR ]; then
 else 
 	echo "FILE "$LC" DOES NOT MATCH"
 fi
-#----------------------------------
 diff $SERV_DIR$BC $CLIE_DIR$BC 
 ERR=$?
 if [ 0 -eq $ERR ]; then
@@ -188,13 +184,12 @@ if [ 0 -eq $ERR ]; then
 else 
 	echo "FILE "$BC" DOES NOT MATCH"
 fi
-#----------------------------------
-diff $SERV_DIR$XFILE $CLIE_DIR$XFILE
+diff $SERV_DIR$FILE $CLIE_DIR$FILE
 ERR=$?
 if [ 0 -eq $ERR ]; then
-	echo "FILE "$XFILE" MATCHES"
+	echo "FILE "$FILE" MATCHES"
 else 
-	echo "FILE "$XFILE" DOES NOT MATCH"
+	echo "FILE "$FILE" DOES NOT MATCH"
 fi
 echo "--------------------------------"
 rm -rf $SERV_DIR $CLIE_DIR

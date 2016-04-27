@@ -25,8 +25,7 @@ echo "-------------------------"
 echo "Copying executables and files into directories"
 cp server $SERV_DIR
 cp client $CLIE_DIR
-rm server
-rm client 
+make clean
 cp $BC $CLIE_DIR
 cp $LC $CLIE_DIR
 cp $XFILE $CLIE_DIR

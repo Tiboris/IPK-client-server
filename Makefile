@@ -8,4 +8,5 @@ server: server.cpp
 
 client: client.cpp
 
-clean: rm -f client server
+clean: 
+	rm -f client server
